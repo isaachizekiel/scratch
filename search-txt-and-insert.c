@@ -1,14 +1,18 @@
-/* the purpose of this program is to help me understand how i can search and replace strings in a large project i.e godot scons files.
- * this program is not 100% complete but we can say it is 95% completed. */
+/* the purpose of this program is to help me understand how i can search and replace strings in a large project
+   i.e godot scons files. */
+
 
 #include <regex.h>
 #include <stdio.h>
 #include <fcntl.h> // open
 #include <string.h>
-#define __USE_GNU // fix for mremap
+// #define __USE_GNU // fix for mremap
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <unistd.h> // close
+
+
+#define BUFFER_LEN 8
 
 int
 main(int argc, char **argv)
@@ -20,8 +24,6 @@ main(int argc, char **argv)
     }
 
   
-  
-  
   int fd, new_file_size;
   char *map;
   const size_t map_size = 4096;
@@ -31,7 +33,7 @@ main(int argc, char **argv)
   const char *search = argv[2];
   const char *insert = argv[3];
 
-  char buffer[8];
+  char buffer[BUFFER_LEN];
   
   fd = open(filepath, O_RDWR, S_IRUSR | S_IWUSR);
   
@@ -41,103 +43,90 @@ main(int argc, char **argv)
       return 0;
     }
 
-
   char tmp [sb.st_size];
-
-  int i = 0;
-  while(i < sb.st_size)
-    {
-      tmp[i] = 0x00; /* initial the the tmp buffer */
-      i++;
-    }
 
   map = mmap(NULL, map_size, PROT_READ | PROT_WRITE | PROT_GROWSDOWN | PROT_GROWSDOWN, MAP_FILE | MAP_SHARED, fd, 0);
 
 
-  i = 0; int s_len = 0;
-  while (search[i] != 0x00) /* check for null for some reason NULLL has warning*/
+  int i = 0, s_len = 0, i_len = 0, t_len = 0;
+  while (search[i] != 0x00) /* check for null for some reason NULLL has warning */
     {
-      s_len++; i++;
+      s_len++; i++; /* count the search string */
     }
-  
-  
+
+  i = 0;
+  while (insert[i] != 0x00)
+    {
+      i_len++; i++; /* count the insertion string */
+    }
+
+
   for (i = 0; i < sb.st_size; i++)
     {
-      int j = 0, k = 0, l = 0;
-      while (j < 8) 
+      
+      int j = 0, k = 0, l = 0, m = 0; unsigned char b = 0x00;
+      while (j < sb.st_size)
 	{
-	  buffer[j] = 0x00; /* clean the buffer */
+	  tmp[j] = 0x00; /* clean the tmp, this is where we place the characters that appear after thee search key word */
 	  j++;
 	}
 
       j = 0;
-      while (j < sb.st_size )
+      while (j < BUFFER_LEN)
 	{
-	  tmp[j] = 0x00; /* clean tmp */
+	  buffer[j] = 0x00; /* clean the buffer, it is where we place the search pattern */
 	  j++;
 	}
-      
-      
+
       j = 0; k = i;
-      while (j < s_len) 
+      while (j < s_len)
 	{
-	  buffer[j] = map[k]; /* copy the search string to buffer */
-	  j++; k++;
+	  buffer[j] = map[k]; /* initialize the buffer with the range of charafters to be searched */
+	  j++; k++;	  
 	}
 
-
-      j = 0;
-      while(j < s_len) /* */
+      j = 0; b = 0; 
+      while (j < s_len)
 	{
-	  printf("%02x ", buffer[j]); /* display the what we are traversing */
-	  j++;
-	  if (j == s_len) printf("%c", 0x0a); /* new line */
-	}
-      
-      j = 0;
-      while (j < s_len) 
-	{	  
-	  if (buffer[j] != search[j]) /* check if index are different */
+	  if (buffer[j] != search[j])
 	    {
-	      l = 0;
+	      b = 0;
 	      break;
-	    }
-	  
-	  l = 1;
+	    }	
+	  b = 1;
 	  j++;
 	}
-      
-      if (l == 1)
+            
+      if (b == 1)
 	{
-	  j = i, l = 0;
-	  while (map[j] != 0x00)
+	  j = 0; k = i + s_len, b = 0;
+	  while (k < sb.st_size)
 	    {
-	      tmp[l] = map[j + s_len];    /* move the remaining characters to tmp buffer */
-	      map[j + s_len] = 0x00;      /* clean the buffer */
-	      l++; j++;
+	      tmp[j] = map[k]; /* move characters past to the search keyword */
+	      map[k] = 0x00;  /* cleaning */
+	      j++; k++; t_len++;
 	    }
 	  
-	  j = i, l = 0; int c = 0;
-	  while(insert[l] != 0x00)
+	  j = 0; k = i;
+	  while (j < i_len)
 	    {
-	      map[j + s_len] = insert[l]; /* remplace the characters next to the searched chars with insert chars */
-	      j++; l++; c++;              /* c++ tracks the length of the insertion */
-	    }
-	  
-	  j = i; l = 0; 
-	  while(tmp[l] != 0x00)
-	    {
-	      // map[j + c] = tmp[l]; /* restore after insertion */
-	      j++; l++;
+	      map[k + s_len] = insert[j];
+	      j++; k++;
 	    }
 
-	  printf("bingo !! %s at %d and tmp is `%s`\n", buffer, i, tmp); /* we find it mayor */
+	  j = 0; k = i;
+	  while(j < t_len)
+	    {
+	      map[k + s_len + i_len] = tmp[j];
+	      j++; k++;
+	    }
+	  
+	  printf("bingo !! %s at %d, len is %d t_len is %d and tmp is `%s` the new map is `%s`\n",
+		 buffer, i, s_len, t_len, tmp, map); /* we find it mayor */
+
 	}
+      
     }
-    
-  printf("search term is: `%s` insert term is: `%s`\n", search, insert);
-  
-  printf("map: %s\n", map);
 
   munmap(map, map_size);  
   close(fd);  
