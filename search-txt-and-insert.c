@@ -99,6 +99,9 @@ main(int argc, char **argv)
             
       if (b == 1)
 	{
+	  /* increase the file size to accomodate the insertion */
+	  ftruncate(fd, sb.st_size + i_len);
+	  
 	  j = 0; k = i + s_len, b = 0;
 	  while (k < sb.st_size)
 	    {
